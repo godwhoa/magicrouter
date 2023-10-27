@@ -6,6 +6,8 @@ import (
 	"magicrouter/chat"
 	"magicrouter/inmem"
 	"magicrouter/server"
+
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
@@ -14,6 +16,6 @@ func main() {
 	svr := server.New(tokenStore, services)
 	err := svr.ListenAndServe()
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("failed to start server")
 	}
 }
