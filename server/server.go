@@ -2,14 +2,17 @@ package server
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
+	"magicrouter/chat"
+
 	"github.com/go-chi/chi/v5"
+	"github.com/rs/zerolog/log"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -35,95 +38,92 @@ func proxySSE(w http.ResponseWriter, body io.Reader) {
 	}
 }
 
-// TokenResolver resolves a provider and a provider token from an api token.
-type TokenResolver interface {
-	ResolveProviderToken(apiToken string) (provider string, pToken string, err error)
-}
-
-type ChatService interface {
-	ChatCompletion(ctx context.Context, req json.RawMessage, token string) (*http.Response, error)
-}
-
 type Server struct {
-	tokenStore TokenResolver
-	services   map[string]ChatService
+	tokenResolver TokenResolver
+	services      chat.Services
 }
 
-func New(tokenStore TokenResolver, services map[string]ChatService) *Server {
+func New(tokenStore TokenResolver, services chat.Services) *Server {
 	return &Server{
-		tokenStore: tokenStore,
-		services:   services,
+		tokenResolver: tokenStore,
+		services:      services,
 	}
 }
 
-func (s *Server) ChatCompletionHandler(w http.ResponseWriter, r *http.Request) {
-	// We need to read the body twice, so let's keep it in a buffer.
+func (s *Server) ChatCompletionHandler(w http.ResponseWriter, r *http.Request) error {
+	providerContext := getProviderContext(r.Context())
+	provider, providerToken := providerContext.provider, providerContext.providerToken
+
+	// We need to read the body twice, so let's keep it in a slice.
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return fmt.Errorf("failed to read request body: %w", err)
 	}
 
 	// Validate request
 	var req openai.ChatCompletionRequest
 	err = json.Unmarshal(body, &req)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+		return HTTPError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "invalid request body",
+			Err:        err,
+		}
 	}
 
-	// Fetch actual openai api key from DB
-	apiToken, err := getBearerToken(r.Header)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	provider, providerToken, err := s.tokenStore.ResolveProviderToken(apiToken)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
+	// Get response from provider
 	service, ok := s.services[provider]
 	if !ok {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return fmt.Errorf("unknown provider: %s", provider)
 	}
 
 	response, err := service.ChatCompletion(r.Context(), json.RawMessage(body), providerToken)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return fmt.Errorf("service request failed: %w", err)
 	}
 	defer io.Copy(io.Discard, response.Body)
 	defer response.Body.Close()
 
-	// Proxy response
+	// Proxy provider response
 	if response.Header.Get("Content-Type") == "text/event-stream" {
 		proxySSE(w, response.Body)
-		return
+		return nil
 	}
+
 	w.WriteHeader(response.StatusCode)
 	_, err = io.Copy(w, response.Body)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return fmt.Errorf("failed to copy response body: %w", err)
 	}
+	return nil
 }
 
-func (s *Server) handleError(fn func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) {
+func handleError(fn func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := fn(w, r)
-		if err != nil {
+		if err == nil {
 			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		log.Error().Err(err).Msg("request failed")
+		httpErr, ok := err.(HTTPError)
+		if ok {
+			w.WriteHeader(httpErr.StatusCode)
+			if httpErr.Message != "" {
+				json.NewEncoder(w).Encode(httpErr)
+			}
+			return
 		}
 	}
 }
 
 func (s *Server) ListenAndServe() error {
 	r := chi.NewRouter()
-	r.Post("/v1/chat/completions", s.ChatCompletionHandler)
+	r.Use(requestLogger(log.Logger))
+	r.Group(func(r chi.Router) {
+		r.Use(resolveToken(s.tokenResolver))
+		r.Post("/v1/chat/completions", handleError(s.ChatCompletionHandler))
+	})
 
 	return http.ListenAndServe(":9200", r)
 }
