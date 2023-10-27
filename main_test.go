@@ -13,7 +13,7 @@ import (
 )
 
 func createLocalClient() *openai.Client {
-	config := openai.DefaultConfig(os.Getenv("OPENAI_API_KEY"))
+	config := openai.DefaultConfig("test")
 	config.BaseURL = "http://localhost:9200/v1"
 	client := openai.NewClientWithConfig(config)
 	return client

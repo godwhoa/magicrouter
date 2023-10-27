@@ -4,9 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"magicrouter/magicrouter"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -22,23 +26,46 @@ func proxySSE(w http.ResponseWriter, body io.Reader) {
 	}
 }
 
+type TokenStore interface {
+	FetchProviderToken(apiToken string) (string, error)
+}
+
+type InMemTokenStore map[string]string
+
+func (s InMemTokenStore) FetchProviderToken(apiToken string) (string, error) {
+	token, ok := s[apiToken]
+	if !ok {
+		return "", errors.New("provider token not found")
+	}
+	return token, nil
+}
+
 type Server struct {
-	client *http.Client
+	client     *http.Client
+	tokenStore TokenStore
 }
 
 func (s *Server) ChatCompletionHandler(w http.ResponseWriter, r *http.Request) {
 	// We need to read the body twice, so let's keep it in a buffer.
-	var body []byte
-	if _, err := io.ReadAll(r.Body); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	// Validate request
 	var req magicrouter.ChatCompletionRequest
-	err := json.Unmarshal(body, &req)
+	err = json.Unmarshal(body, &req)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Fetch actual openai api key from DB
+	apiToken := strings.Split(r.Header.Get("Authorization"), " ")[1]
+	providerToken, err := s.tokenStore.FetchProviderToken(apiToken)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -48,7 +75,7 @@ func (s *Server) ChatCompletionHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	hReq.Header.Set("Authorization", r.Header.Get("Authorization"))
+	hReq.Header.Set("Authorization", fmt.Sprintf(" Bearer %s", providerToken))
 	hReq.Header.Set("Content-Type", "application/json")
 
 	response, err := s.client.Do(hReq)
@@ -79,7 +106,8 @@ func (s *Server) ListenAndServe() error {
 
 func main() {
 	server := &Server{
-		client: &http.Client{},
+		client:     &http.Client{},
+		tokenStore: InMemTokenStore{"test": os.Getenv("OPENAI_API_KEY")},
 	}
 	err := server.ListenAndServe()
 	if err != nil {
