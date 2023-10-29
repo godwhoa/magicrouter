@@ -24,7 +24,7 @@ type FallbackChatService struct {
 
 func NewFallbackChatService(routes []Route, services ChatServices) *FallbackChatService {
 	sort.Slice(routes, func(i, j int) bool {
-		return routes[i].Priority > routes[j].Priority
+		return routes[i].Priority < routes[j].Priority // ascending
 	})
 	return &FallbackChatService{
 		routes:   routes,
@@ -33,7 +33,8 @@ func NewFallbackChatService(routes []Route, services ChatServices) *FallbackChat
 }
 
 func (s *FallbackChatService) ChatCompletion(ctx context.Context, req json.RawMessage) (*http.Response, error) {
-	for _, route := range s.routes {
+	for index, route := range s.routes {
+		isLast := index == len(s.routes)-1
 		svc, ok := s.services[route.Provider]
 		if !ok {
 			return nil, fmt.Errorf("unknown provider: %s", route.Provider)
@@ -43,8 +44,11 @@ func (s *FallbackChatService) ChatCompletion(ctx context.Context, req json.RawMe
 		if errors.Is(err, ErrProviderRateLimited) || errors.Is(err, ErrProviderTimeout) {
 			continue
 		}
-		if err != nil {
+		if err != nil && isLast {
 			return nil, err
+		}
+		if err != nil {
+			continue
 		}
 
 		return resp, nil
