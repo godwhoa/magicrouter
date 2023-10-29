@@ -19,6 +19,8 @@ func main() {
 			ID: "project1",
 			Routes: []core.Route{
 				{
+					ID:            "route1",
+					Priority:      1,
 					Provider:      "openai",
 					Model:         "gpt-3.5-turbo",
 					ProviderToken: os.Getenv("OPENAI_API_KEY"),
