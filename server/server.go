@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"magicrouter/chat"
+	"magicrouter/core"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog/log"
@@ -39,11 +39,11 @@ func proxySSE(w http.ResponseWriter, body io.Reader) {
 }
 
 type Server struct {
-	tokenResolver TokenResolver
-	services      chat.Services
+	tokenResolver core.TokenResolver
+	services      core.ChatServices
 }
 
-func New(tokenStore TokenResolver, services chat.Services) *Server {
+func New(tokenStore core.TokenResolver, services core.ChatServices) *Server {
 	return &Server{
 		tokenResolver: tokenStore,
 		services:      services,
@@ -77,7 +77,7 @@ func (s *Server) ChatCompletionHandler(w http.ResponseWriter, r *http.Request) e
 		return fmt.Errorf("unknown provider: %s", provider)
 	}
 
-	response, err := service.ChatCompletion(r.Context(), json.RawMessage(body), providerToken)
+	response, err := service.ChatCompletion(r.Context(), json.RawMessage(body), req.Model, providerToken)
 	if err != nil {
 		return fmt.Errorf("service request failed: %w", err)
 	}

@@ -2,17 +2,13 @@ package server
 
 import (
 	"context"
+	"magicrouter/core"
 	"net/http"
 	"runtime/debug"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
 )
-
-// TokenResolver resolves a provider and a provider token from an api token.
-type TokenResolver interface {
-	ResolveProviderToken(apiToken string) (provider string, pToken string, err error)
-}
 
 type providerContext struct {
 	provider      string
@@ -26,7 +22,7 @@ func getProviderContext(ctx context.Context) *providerContext {
 	return ctx.Value(providerContextKey{}).(*providerContext)
 }
 
-func resolveToken(resolver TokenResolver) func(http.Handler) http.Handler {
+func resolveToken(resolver core.TokenResolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiToken, err := getBearerToken(r.Header)

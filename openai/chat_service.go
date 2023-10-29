@@ -1,4 +1,4 @@
-package chat
+package openai
 
 import (
 	"bytes"
@@ -6,19 +6,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/tidwall/sjson"
 )
 
-type OpenAIChatService struct {
+type ChatService struct {
 	client *http.Client
 }
 
-func NewOpenAIChatService(client *http.Client) *OpenAIChatService {
-	return &OpenAIChatService{
+func NewChatService(client *http.Client) *ChatService {
+	return &ChatService{
 		client: client,
 	}
 }
 
-func (s *OpenAIChatService) ChatCompletion(ctx context.Context, req json.RawMessage, token string) (*http.Response, error) {
+func (s *ChatService) ChatCompletion(ctx context.Context, req json.RawMessage, model, token string) (*http.Response, error) {
+	req, err := sjson.SetBytes(req, "model", model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update model: %w", err)
+	}
+
 	hReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(req))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
