@@ -37,7 +37,7 @@ func NewFallbackChatService(routes []Route, services ChatServices) *FallbackChat
 	}
 }
 
-func (s *FallbackChatService) ChatCompletion(ctx context.Context, req json.RawMessage, token string) (*http.Response, error) {
+func (s *FallbackChatService) ChatCompletion(ctx context.Context, req json.RawMessage) (*http.Response, error) {
 	for _, route := range s.routes {
 		svc, ok := s.services[route.Provider]
 		if !ok {

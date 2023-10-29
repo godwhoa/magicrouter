@@ -41,19 +41,18 @@ func proxySSE(w http.ResponseWriter, body io.Reader) {
 type Server struct {
 	tokenResolver core.TokenResolver
 	services      core.ChatServices
+	projectStore  core.ProjectStore
 }
 
-func New(tokenStore core.TokenResolver, services core.ChatServices) *Server {
+func New(tokenStore core.TokenResolver, services core.ChatServices, projectStore core.ProjectStore) *Server {
 	return &Server{
 		tokenResolver: tokenStore,
 		services:      services,
+		projectStore:  projectStore,
 	}
 }
 
 func (s *Server) ChatCompletionHandler(w http.ResponseWriter, r *http.Request) error {
-	providerContext := getProviderContext(r.Context())
-	provider, providerToken := providerContext.provider, providerContext.providerToken
-
 	// We need to read the body twice, so let's keep it in a slice.
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -71,13 +70,16 @@ func (s *Server) ChatCompletionHandler(w http.ResponseWriter, r *http.Request) e
 		}
 	}
 
-	// Get response from provider
-	service, ok := s.services[provider]
-	if !ok {
-		return fmt.Errorf("unknown provider: %s", provider)
+	// Get project config which contains fallback configuration
+	projectID := getProjectID(r.Context())
+	cfg, err := s.projectStore.GetConfig(projectID)
+	if err != nil {
+		return fmt.Errorf("failed to get project config: %w", err)
 	}
 
-	response, err := service.ChatCompletion(r.Context(), json.RawMessage(body), req.Model, providerToken)
+	// Send request to provider
+	service := core.NewFallbackChatService(cfg.Routes, s.services)
+	response, err := service.ChatCompletion(r.Context(), json.RawMessage(body))
 	if err != nil {
 		return fmt.Errorf("service request failed: %w", err)
 	}

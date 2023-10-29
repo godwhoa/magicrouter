@@ -2,24 +2,19 @@ package server
 
 import (
 	"context"
-	"magicrouter/core"
 	"net/http"
 	"runtime/debug"
+
+	"magicrouter/core"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
 )
 
-type providerContext struct {
-	provider      string
-	providerToken string
-	apiToken      string
-}
+type projectIDContextKey struct{}
 
-type providerContextKey struct{}
-
-func getProviderContext(ctx context.Context) *providerContext {
-	return ctx.Value(providerContextKey{}).(*providerContext)
+func getProjectID(ctx context.Context) string {
+	return ctx.Value(projectIDContextKey{}).(string)
 }
 
 func resolveToken(resolver core.TokenResolver) func(http.Handler) http.Handler {
@@ -30,16 +25,12 @@ func resolveToken(resolver core.TokenResolver) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			provider, pToken, err := resolver.ResolveProviderToken(apiToken)
+			projectID, err := resolver.Resolve(apiToken)
 			if err != nil {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			ctx := context.WithValue(r.Context(), providerContextKey{}, &providerContext{
-				provider:      provider,
-				providerToken: pToken,
-				apiToken:      apiToken,
-			})
+			ctx := context.WithValue(r.Context(), projectIDContextKey{}, projectID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

@@ -4,10 +4,10 @@ import "errors"
 
 type TokenStore map[string]string
 
-func (s TokenStore) ResolveProviderToken(apiToken string) (string, string, error) {
-	token, ok := s[apiToken]
+func (s TokenStore) Resolve(apiToken string) (string, error) {
+	projectID, ok := s[apiToken]
 	if !ok {
-		return "", "", errors.New("provider token not found")
+		return "", errors.New("project id not found")
 	}
-	return "openai", token, nil
+	return projectID, nil
 }

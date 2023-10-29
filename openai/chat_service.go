@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tidwall/sjson"
 )
 
@@ -21,6 +22,7 @@ func NewChatService(client *http.Client) *ChatService {
 }
 
 func (s *ChatService) ChatCompletion(ctx context.Context, req json.RawMessage, model, token string) (*http.Response, error) {
+	log.Info().Msg("openai.ChatCompletion")
 	req, err := sjson.SetBytes(req, "model", model)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update model: %w", err)
