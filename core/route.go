@@ -3,11 +3,22 @@ package core
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 )
+
+type FallbackError map[string]error
+
+func (e FallbackError) Error() string {
+	var msg strings.Builder
+	msg.WriteString("all routes failed: ")
+	for route, err := range e {
+		msg.WriteString(fmt.Sprintf("%s: %s, ", route, err.Error()))
+	}
+	return msg.String()
+}
 
 type Route struct {
 	ID            string
@@ -33,26 +44,20 @@ func NewFallbackChatService(routes []Route, services ChatServices) *FallbackChat
 }
 
 func (s *FallbackChatService) ChatCompletion(ctx context.Context, req json.RawMessage) (*http.Response, error) {
-	for index, route := range s.routes {
-		isLast := index == len(s.routes)-1
+	fallbackErr := make(FallbackError)
+	for _, route := range s.routes {
 		svc, ok := s.services[route.Provider]
 		if !ok {
 			return nil, fmt.Errorf("unknown provider: %s", route.Provider)
 		}
 
 		resp, err := svc.ChatCompletion(ctx, req, route.Model, route.ProviderToken)
-		if errors.Is(err, ErrProviderRateLimited) || errors.Is(err, ErrProviderTimeout) {
-			continue
-		}
-		if err != nil && isLast {
-			return nil, err
-		}
 		if err != nil {
+			fallbackErr[route.ID] = err
 			continue
 		}
-
 		return resp, nil
 	}
 
-	return nil, fmt.Errorf("all providers rate limited or timed out")
+	return nil, fallbackErr
 }

@@ -116,7 +116,7 @@ func TestFallbackChatService_ChatCompletion(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 	// Sad path - All routes fail
-	t.Run("sad path - all routes fail", func(t *testing.T) {
+	t.Run("sad path - all routes fail - ensure FallbackError", func(t *testing.T) {
 		mockService := mocks.NewChatService(t)
 		mockService.
 			On("ChatCompletion", mock.Anything, json.RawMessage(`{"prompt": "hello"}`), "gpt-3.5-turbo", "test").
@@ -148,7 +148,11 @@ func TestFallbackChatService_ChatCompletion(t *testing.T) {
 			},
 		)
 		resp, err := svc.ChatCompletion(context.Background(), json.RawMessage(`{"prompt": "hello"}`))
-		assert.Error(t, err)
+		assert.Equal(t, core.FallbackError{
+			"route1": core.ErrProviderRateLimited,
+			"route2": core.ErrProviderTimeout,
+		}, err)
+		assert.Equal(t, err.Error(), "all routes failed: route1: provider rate limited, route2: provider timeout, ")
 		assert.Nil(t, resp)
 	})
 	// Sad path - First route fails with non-retryable error
@@ -215,6 +219,31 @@ func TestFallbackChatService_ChatCompletion(t *testing.T) {
 					Priority:      2,
 					Provider:      "openai",
 					Model:         "gpt-4",
+					ProviderToken: "test",
+				},
+			},
+			core.ChatServices{
+				"openai": mockService,
+			},
+		)
+		resp, err := svc.ChatCompletion(context.Background(), json.RawMessage(`{"prompt": "hello"}`))
+		assert.Error(t, err)
+		assert.Nil(t, resp)
+	})
+	// Sad path - First and only route fails with rate limit, it should return the error
+	t.Run("sad path - last route fails with rate limit, it should return the error", func(t *testing.T) {
+		mockService := mocks.NewChatService(t)
+		mockService.
+			On("ChatCompletion", mock.Anything, json.RawMessage(`{"prompt": "hello"}`), "gpt-3.5-turbo", "test").
+			Return(nil, core.ErrProviderRateLimited).
+			Once()
+		svc := core.NewFallbackChatService(
+			[]core.Route{
+				{
+					ID:            "route1",
+					Priority:      1,
+					Provider:      "openai",
+					Model:         "gpt-3.5-turbo",
 					ProviderToken: "test",
 				},
 			},
