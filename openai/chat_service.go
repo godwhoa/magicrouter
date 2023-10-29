@@ -5,19 +5,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"magicrouter/core"
 	"net/http"
+	"net/url"
 
 	"github.com/rs/zerolog/log"
 	"github.com/tidwall/sjson"
 )
 
 type ChatService struct {
-	client *http.Client
+	client   *http.Client
+	endpoint string
 }
 
 func NewChatService(client *http.Client) *ChatService {
 	return &ChatService{
-		client: client,
+		endpoint: "https://api.openai.com/v1/chat/completions",
+		client:   client,
 	}
 }
 
@@ -28,7 +32,7 @@ func (s *ChatService) ChatCompletion(ctx context.Context, req json.RawMessage, m
 		return nil, fmt.Errorf("failed to update model: %w", err)
 	}
 
-	hReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(req))
+	hReq, err := http.NewRequestWithContext(ctx, http.MethodPost, s.endpoint, bytes.NewBuffer(req))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -36,8 +40,14 @@ func (s *ChatService) ChatCompletion(ctx context.Context, req json.RawMessage, m
 	hReq.Header.Set("Content-Type", "application/json")
 
 	response, err := s.client.Do(hReq)
+	if urlErr, ok := err.(*url.Error); ok && urlErr.Timeout() {
+		return nil, core.ErrProviderTimeout
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	if response.StatusCode == http.StatusTooManyRequests {
+		return nil, core.ErrProviderRateLimited
 	}
 
 	return response, nil
