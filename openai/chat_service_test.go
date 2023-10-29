@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"io"
 	"magicrouter/core"
 	"net/http"
 	"testing"
@@ -67,4 +68,23 @@ func TestChatService_ChatCompletion(t *testing.T) {
 		})
 	}
 
+}
+
+func TestChatService_ChatCompletion_EnsureModel(t *testing.T) {
+	httpClient := &mockHTTPClient{}
+	svc := NewChatService(httpClient)
+	svc.ChatCompletion(context.Background(), []byte(`{}`), "model", "token")
+	assert.JSONEq(t, `{"model":"model"}`, string(httpClient.body))
+}
+
+type mockHTTPClient struct {
+	body []byte
+}
+
+func (m *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	m.body, _ = io.ReadAll(req.Body)
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       http.NoBody,
+	}, nil
 }

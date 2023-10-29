@@ -10,5 +10,5 @@
 - [ ] Rate limiting
 
 # Tech debt
-- [ ] Test fallback
-- [ ] Ensure providers return ErrRateLimited etc.
+- [x] Test fallback
+- [x] Ensure providers return ErrRateLimited etc.

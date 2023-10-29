@@ -13,12 +13,16 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 type ChatService struct {
-	client   *http.Client
+	client   HTTPClient
 	endpoint string
 }
 
-func NewChatService(client *http.Client) *ChatService {
+func NewChatService(client HTTPClient) *ChatService {
 	return &ChatService{
 		endpoint: "https://api.openai.com/v1/chat/completions",
 		client:   client,
