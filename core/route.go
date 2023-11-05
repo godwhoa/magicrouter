@@ -31,21 +31,28 @@ type Route struct {
 type FallbackChatService struct {
 	routes   []Route
 	services ChatServices
+	breaker  BreakerService
 }
 
-func NewFallbackChatService(routes []Route, services ChatServices) *FallbackChatService {
+func NewFallbackChatService(routes []Route, services ChatServices, breaker BreakerService) *FallbackChatService {
 	sort.Slice(routes, func(i, j int) bool {
 		return routes[i].Priority < routes[j].Priority // ascending
 	})
 	return &FallbackChatService{
 		routes:   routes,
 		services: services,
+		breaker:  breaker,
 	}
 }
 
 func (s *FallbackChatService) ChatCompletion(ctx context.Context, req json.RawMessage) (*http.Response, error) {
 	fallbackErr := make(FallbackError)
 	for _, route := range s.routes {
+
+		if !s.breaker.GetState(route.ID).ShouldAttempt() {
+			continue
+		}
+
 		svc, ok := s.services[route.Provider]
 		if !ok {
 			return nil, fmt.Errorf("unknown provider: %s", route.Provider)
@@ -54,8 +61,10 @@ func (s *FallbackChatService) ChatCompletion(ctx context.Context, req json.RawMe
 		resp, err := svc.ChatCompletion(ctx, req, route.Model, route.ProviderToken)
 		if err != nil {
 			fallbackErr[route.ID] = err
+			s.breaker.ReportFailure(route.ID)
 			continue
 		}
+		s.breaker.ReportSuccess(route.ID)
 		return resp, nil
 	}
 

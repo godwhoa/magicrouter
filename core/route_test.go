@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"magicrouter/core"
-	"magicrouter/mocks"
 	"net/http"
 	"testing"
+
+	"magicrouter/core"
+	"magicrouter/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -36,6 +37,7 @@ func TestFallbackChatService_ChatCompletion(t *testing.T) {
 			core.ChatServices{
 				"openai": mockService,
 			},
+			core.NoOpBreaker{},
 		)
 		resp, err := svc.ChatCompletion(context.Background(), json.RawMessage(`{"prompt": "hello"}`))
 		assert.NoError(t, err)
@@ -71,6 +73,7 @@ func TestFallbackChatService_ChatCompletion(t *testing.T) {
 			core.ChatServices{
 				"openai": mockService,
 			},
+			core.NoOpBreaker{},
 		)
 		resp, err := svc.ChatCompletion(context.Background(), json.RawMessage(`{"prompt": "hello"}`))
 		assert.NoError(t, err)
@@ -110,6 +113,7 @@ func TestFallbackChatService_ChatCompletion(t *testing.T) {
 			core.ChatServices{
 				"openai": mockService,
 			},
+			core.NoOpBreaker{},
 		)
 		resp, err := svc.ChatCompletion(context.Background(), json.RawMessage(`{"prompt": "hello"}`))
 		assert.NoError(t, err)
@@ -146,6 +150,7 @@ func TestFallbackChatService_ChatCompletion(t *testing.T) {
 			core.ChatServices{
 				"openai": mockService,
 			},
+			core.NoOpBreaker{},
 		)
 		resp, err := svc.ChatCompletion(context.Background(), json.RawMessage(`{"prompt": "hello"}`))
 		assert.Equal(t, core.FallbackError{
@@ -189,6 +194,7 @@ func TestFallbackChatService_ChatCompletion(t *testing.T) {
 			core.ChatServices{
 				"openai": mockService,
 			},
+			core.NoOpBreaker{},
 		)
 		resp, err := svc.ChatCompletion(context.Background(), json.RawMessage(`{"prompt": "hello"}`))
 		assert.NoError(t, err)
@@ -225,6 +231,7 @@ func TestFallbackChatService_ChatCompletion(t *testing.T) {
 			core.ChatServices{
 				"openai": mockService,
 			},
+			core.NoOpBreaker{},
 		)
 		resp, err := svc.ChatCompletion(context.Background(), json.RawMessage(`{"prompt": "hello"}`))
 		assert.Error(t, err)
@@ -250,9 +257,51 @@ func TestFallbackChatService_ChatCompletion(t *testing.T) {
 			core.ChatServices{
 				"openai": mockService,
 			},
+			core.NoOpBreaker{},
 		)
 		resp, err := svc.ChatCompletion(context.Background(), json.RawMessage(`{"prompt": "hello"}`))
 		assert.Error(t, err)
 		assert.Nil(t, resp)
+	})
+
+	t.Run("sad path - breaker open", func(t *testing.T) {
+		mockService := mocks.NewChatService(t)
+		mockBreaker := mocks.NewBreakerService(t)
+		mockBreaker.On("GetState", "route1").Return(core.BreakerStateOpen).Once()
+		mockBreaker.On("GetState", "route2").Return(core.BreakerStateClosed).Once()
+		mockBreaker.On("ReportSuccess", "route2").Once()
+		mockService.
+			On("ChatCompletion", mock.Anything, json.RawMessage(`{"prompt": "hello"}`), "gpt-4", "test").
+			Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       http.NoBody,
+			}, nil).
+			Once()
+		svc := core.NewFallbackChatService(
+			[]core.Route{
+				{
+					ID:            "route1",
+					Priority:      1,
+					Provider:      "openai",
+					Model:         "gpt-3.5-turbo",
+					ProviderToken: "test",
+				},
+				{
+					ID:            "route2",
+					Priority:      2,
+					Provider:      "openai",
+					Model:         "gpt-4",
+					ProviderToken: "test",
+				},
+			},
+			core.ChatServices{
+				"openai": mockService,
+			},
+			mockBreaker,
+		)
+		resp, err := svc.ChatCompletion(context.Background(), json.RawMessage(`{"prompt": "hello"}`))
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }

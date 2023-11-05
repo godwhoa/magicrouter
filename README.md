@@ -5,6 +5,7 @@
 # Capability
 - [x] Proxying to OpenAI API
 - [x] Fallback for providers/models
+- [ ] Improve fallback with redis based circuit breaker
 - [ ] Azure provider
 - [ ] Response logging
 - [ ] Rate limiting

@@ -3,10 +3,11 @@ package openai
 import (
 	"context"
 	"io"
-	"magicrouter/core"
 	"net/http"
 	"testing"
 	"time"
+
+	"magicrouter/core"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -67,7 +68,6 @@ func TestChatService_ChatCompletion(t *testing.T) {
 			assert.Equal(t, tt.err, err)
 		})
 	}
-
 }
 
 func TestChatService_ChatCompletion_EnsureModel(t *testing.T) {

@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"magicrouter/core"
 	"net/http"
 	"net/url"
+
+	"magicrouter/core"
 
 	"github.com/rs/zerolog/log"
 	"github.com/tidwall/sjson"

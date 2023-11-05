@@ -78,7 +78,7 @@ func (s *Server) ChatCompletionHandler(w http.ResponseWriter, r *http.Request) e
 	}
 
 	// Send request to provider
-	service := core.NewFallbackChatService(cfg.Routes, s.services)
+	service := core.NewFallbackChatService(cfg.Routes, s.services, core.NoOpBreaker{})
 	response, err := service.ChatCompletion(r.Context(), json.RawMessage(body))
 	if err != nil {
 		return fmt.Errorf("service request failed: %w", err)
