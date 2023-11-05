@@ -45,7 +45,7 @@ func (b *BreakerService) GetState(ctx context.Context, breakerID string) core.Br
 func (b *BreakerService) ReportFailure(ctx context.Context, breakerID string) {
 	b.mutateRecord(ctx, breakerID, func(record BreakerRecord) BreakerRecord {
 		record.Failures++
-		record.LastFailure = time.Now()
+		record.LastFailure = time.Now().UTC()
 		return record
 	})
 }
