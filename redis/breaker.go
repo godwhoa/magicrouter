@@ -2,8 +2,9 @@ package redis
 
 import (
 	"context"
-	"magicrouter/core"
 	"time"
+
+	"magicrouter/core"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"

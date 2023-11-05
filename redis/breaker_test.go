@@ -2,10 +2,11 @@ package redis
 
 import (
 	"context"
-	"magicrouter/core"
 	"os"
 	"testing"
 	"time"
+
+	"magicrouter/core"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"

@@ -3,6 +3,7 @@
 package mocks
 
 import (
+	context "context"
 	core "magicrouter/core"
 
 	mock "github.com/stretchr/testify/mock"
@@ -13,13 +14,13 @@ type BreakerService struct {
 	mock.Mock
 }
 
-// GetState provides a mock function with given fields: breakerID
-func (_m *BreakerService) GetState(breakerID string) core.BreakerState {
-	ret := _m.Called(breakerID)
+// GetState provides a mock function with given fields: ctx, breakerID
+func (_m *BreakerService) GetState(ctx context.Context, breakerID string) core.BreakerState {
+	ret := _m.Called(ctx, breakerID)
 
 	var r0 core.BreakerState
-	if rf, ok := ret.Get(0).(func(string) core.BreakerState); ok {
-		r0 = rf(breakerID)
+	if rf, ok := ret.Get(0).(func(context.Context, string) core.BreakerState); ok {
+		r0 = rf(ctx, breakerID)
 	} else {
 		r0 = ret.Get(0).(core.BreakerState)
 	}
@@ -27,14 +28,14 @@ func (_m *BreakerService) GetState(breakerID string) core.BreakerState {
 	return r0
 }
 
-// ReportFailure provides a mock function with given fields: breakerID
-func (_m *BreakerService) ReportFailure(breakerID string) {
-	_m.Called(breakerID)
+// ReportFailure provides a mock function with given fields: ctx, breakerID
+func (_m *BreakerService) ReportFailure(ctx context.Context, breakerID string) {
+	_m.Called(ctx, breakerID)
 }
 
-// ReportSuccess provides a mock function with given fields: breakerID
-func (_m *BreakerService) ReportSuccess(breakerID string) {
-	_m.Called(breakerID)
+// ReportSuccess provides a mock function with given fields: ctx, breakerID
+func (_m *BreakerService) ReportSuccess(ctx context.Context, breakerID string) {
+	_m.Called(ctx, breakerID)
 }
 
 // NewBreakerService creates a new instance of BreakerService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

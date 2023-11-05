@@ -1,6 +1,9 @@
 package core
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type BreakerState uint
 
@@ -35,17 +38,17 @@ type BreakerConfig struct {
 }
 
 type BreakerService interface {
-	GetState(breakerID string) BreakerState
-	ReportFailure(breakerID string)
-	ReportSuccess(breakerID string)
+	GetState(ctx context.Context, breakerID string) BreakerState
+	ReportFailure(ctx context.Context, breakerID string)
+	ReportSuccess(ctx context.Context, breakerID string)
 }
 
 type NoOpBreaker struct{}
 
-func (n NoOpBreaker) GetState(breakerID string) BreakerState {
+func (n NoOpBreaker) GetState(ctx context.Context, breakerID string) BreakerState {
 	return BreakerStateClosed
 }
 
-func (n NoOpBreaker) ReportFailure(breakerID string) {}
+func (n NoOpBreaker) ReportSuccess(ctx context.Context, breakerID string) {}
 
-func (n NoOpBreaker) ReportSuccess(breakerID string) {}
+func (n NoOpBreaker) ReportFailure(ctx context.Context, breakerID string) {}

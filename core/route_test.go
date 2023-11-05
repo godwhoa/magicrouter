@@ -267,9 +267,9 @@ func TestFallbackChatService_ChatCompletion(t *testing.T) {
 	t.Run("sad path - breaker open", func(t *testing.T) {
 		mockService := mocks.NewChatService(t)
 		mockBreaker := mocks.NewBreakerService(t)
-		mockBreaker.On("GetState", "route1").Return(core.BreakerStateOpen).Once()
-		mockBreaker.On("GetState", "route2").Return(core.BreakerStateClosed).Once()
-		mockBreaker.On("ReportSuccess", "route2").Once()
+		mockBreaker.On("GetState", mock.Anything, "route1").Return(core.BreakerStateOpen).Once()
+		mockBreaker.On("GetState", mock.Anything, "route2").Return(core.BreakerStateClosed).Once()
+		mockBreaker.On("ReportSuccess", mock.Anything, "route2").Once()
 		mockService.
 			On("ChatCompletion", mock.Anything, json.RawMessage(`{"prompt": "hello"}`), "gpt-4", "test").
 			Return(&http.Response{

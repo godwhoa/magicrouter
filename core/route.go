@@ -49,7 +49,7 @@ func (s *FallbackChatService) ChatCompletion(ctx context.Context, req json.RawMe
 	fallbackErr := make(FallbackError)
 	for _, route := range s.routes {
 
-		if !s.breaker.GetState(route.ID).ShouldAttempt() {
+		if !s.breaker.GetState(ctx, route.ID).ShouldAttempt() {
 			continue
 		}
 
@@ -61,10 +61,10 @@ func (s *FallbackChatService) ChatCompletion(ctx context.Context, req json.RawMe
 		resp, err := svc.ChatCompletion(ctx, req, route.Model, route.ProviderToken)
 		if err != nil {
 			fallbackErr[route.ID] = err
-			s.breaker.ReportFailure(route.ID)
+			s.breaker.ReportFailure(ctx, route.ID)
 			continue
 		}
-		s.breaker.ReportSuccess(route.ID)
+		s.breaker.ReportSuccess(ctx, route.ID)
 		return resp, nil
 	}
 
