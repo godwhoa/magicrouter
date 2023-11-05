@@ -44,33 +44,19 @@ func (b *BreakerService) GetState(ctx context.Context, breakerID string) core.Br
 }
 
 func (b *BreakerService) ReportFailure(ctx context.Context, breakerID string) {
-	b.mutateRecord(ctx, breakerID, func(record BreakerRecord) BreakerRecord {
-		record.Failures++
-		record.LastFailure = time.Now().UTC()
-		return record
+	_, err := b.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		pipe.HIncrBy(ctx, breakerID, "failures", 1)
+		pipe.HSet(ctx, breakerID, "last_failure", time.Now().UTC().Format(time.RFC3339Nano))
+		return nil
 	})
+	if err != nil {
+		log.Err(err).Str("breaker_id", breakerID).Msg("failed persist failure record to redis")
+	}
 }
 
 func (b *BreakerService) ReportSuccess(ctx context.Context, breakerID string) {
-	b.mutateRecord(ctx, breakerID, func(record BreakerRecord) BreakerRecord {
-		record.Failures = 0
-		return record
-	})
-}
-
-func (b *BreakerService) mutateRecord(ctx context.Context, breakerID string, mutator func(BreakerRecord) BreakerRecord) {
-	var record BreakerRecord
-	err := b.client.HGetAll(ctx, breakerID).Scan(&record)
-	if err != nil && err != redis.Nil {
-		log.Err(err).Str("breaker_id", breakerID).Msg("failed to get breaker record from redis")
-		return
-	}
-
-	record = mutator(record)
-
-	err = b.client.HSet(ctx, breakerID, record).Err()
+	err := b.client.HSet(ctx, breakerID, "failures", 0).Err()
 	if err != nil {
-		log.Err(err).Str("breaker_id", breakerID).Msg("failed to update breaker record in redis")
-		return
+		log.Err(err).Str("breaker_id", breakerID).Msg("failed persist success record to redis")
 	}
 }

@@ -72,3 +72,37 @@ func TestBreakerService(t *testing.T) {
 	state = breaker.GetState(ctx, breakerID)
 	assert.Equal(t, core.BreakerStateClosed, state)
 }
+
+func BenchmarkBreakerService(b *testing.B) {
+	if os.Getenv("REDIS_ADDR") == "" {
+		b.Skip("redis not available")
+	}
+	breaker := &BreakerService{
+		client: redis.NewClient(&redis.Options{
+			Addr: os.Getenv("REDIS_ADDR"),
+		}),
+		cfg: core.BreakerConfig{
+			MaxFailures:  10,
+			ResetTimeout: time.Second * 1,
+		},
+	}
+	ctx := context.Background()
+	breakerID := "bench"
+	b.Cleanup(func() {
+		breaker.client.Del(ctx, breakerID)
+	})
+
+	b.Run("Happy Path", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			breaker.GetState(ctx, breakerID)
+			breaker.ReportSuccess(ctx, breakerID)
+		}
+	})
+
+	b.Run("Sad Path", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			breaker.GetState(ctx, breakerID)
+			breaker.ReportFailure(ctx, breakerID)
+		}
+	})
+}
