@@ -1,5 +1,7 @@
 package core
 
+import "time"
+
 type BreakerState uint
 
 const (
@@ -23,6 +25,13 @@ func (s BreakerState) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+type BreakerConfig struct {
+	// MaxFailures is the number of failures before the breaker opens.
+	MaxFailures int
+	// ResetTimeout is the amount of time before the breaker resets to closed.
+	ResetTimeout time.Duration
 }
 
 type BreakerService interface {
