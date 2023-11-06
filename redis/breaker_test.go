@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,10 +18,11 @@ func TestBreakerService(t *testing.T) {
 	if os.Getenv("REDIS_ADDR") == "" {
 		t.Skip("redis not available")
 	}
+	client := redis.NewClient(&redis.Options{
+		Addr: os.Getenv("REDIS_ADDR"),
+	})
 	breaker := &BreakerService{
-		client: redis.NewClient(&redis.Options{
-			Addr: os.Getenv("REDIS_ADDR"),
-		}),
+		client: client,
 		cfg: core.BreakerConfig{
 			MaxFailures:  10,
 			ResetTimeout: time.Second * 1,
@@ -39,11 +41,27 @@ func TestBreakerService(t *testing.T) {
 
 	// After 10 failures, it opens
 	// { "failures": 10, "last_failure": t1, "last_reset": t1 }
+	var wg sync.WaitGroup
+	wg.Add(10)
 	for i := 0; i < 10; i++ {
-		breaker.ReportFailure(ctx, breakerID)
+		go func(id int) {
+			defer wg.Done()
+
+			breaker.ReportFailure(ctx, breakerID)
+
+			failures, err := client.HGet(ctx, breakerID, "failures").Int()
+			assert.NoError(t, err)
+			assert.LessOrEqual(t, failures, 10)
+		}(i)
 	}
+	wg.Wait()
 	state, _ = breaker.GetState(ctx, breakerID)
 	assert.Equal(t, core.BreakerStateOpen, state)
+	// Ensure failure count is 10
+	failures, err := client.HGet(ctx, breakerID, "failures").Int()
+	assert.NoError(t, err)
+	assert.Equal(t, failures, 10)
+	t.Fail()
 
 	// After reset timeout it goes half-open
 	// { "failures": 10, "last_failure": t1, "last_reset": t1 }
