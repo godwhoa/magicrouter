@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 )
 
 type FallbackError map[string]error
@@ -48,8 +50,11 @@ func NewFallbackChatService(routes []Route, services ChatServices, breaker Break
 func (s *FallbackChatService) ChatCompletion(ctx context.Context, req json.RawMessage) (*http.Response, error) {
 	fallbackErr := make(FallbackError)
 	for _, route := range s.routes {
-
-		if !s.breaker.GetState(ctx, route.ID).ShouldAttempt() {
+		state, err := s.breaker.GetState(ctx, route.ID)
+		if err != nil {
+			log.Err(err).Msg("failed to get breaker state")
+		}
+		if err == nil && !state.ShouldAttempt() {
 			continue
 		}
 

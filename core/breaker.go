@@ -38,17 +38,17 @@ type BreakerConfig struct {
 }
 
 type BreakerService interface {
-	GetState(ctx context.Context, breakerID string) BreakerState
-	ReportFailure(ctx context.Context, breakerID string)
-	ReportSuccess(ctx context.Context, breakerID string)
+	GetState(ctx context.Context, breakerID string) (BreakerState, error)
+	ReportFailure(ctx context.Context, breakerID string) error
+	ReportSuccess(ctx context.Context, breakerID string) error
 }
 
 type NoOpBreaker struct{}
 
-func (n NoOpBreaker) GetState(ctx context.Context, breakerID string) BreakerState {
-	return BreakerStateClosed
+func (n NoOpBreaker) GetState(ctx context.Context, breakerID string) (BreakerState, error) {
+	return BreakerStateClosed, nil
 }
 
-func (n NoOpBreaker) ReportSuccess(ctx context.Context, breakerID string) {}
+func (n NoOpBreaker) ReportSuccess(ctx context.Context, breakerID string) error { return nil }
 
-func (n NoOpBreaker) ReportFailure(ctx context.Context, breakerID string) {}
+func (n NoOpBreaker) ReportFailure(ctx context.Context, breakerID string) error { return nil }
